@@ -6,6 +6,7 @@
   "dependencies": {
     "dotenv": "^4.0.0",
     "node-telegram-bot-api": "^0.29.0",
+    "request": "^2.83.0",
     "telegraf": "^3.15.3"
   },
   "devDependencies": {},
