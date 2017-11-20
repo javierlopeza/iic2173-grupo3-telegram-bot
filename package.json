@@ -1,0 +1,27 @@
+{
+  "name": "bot",
+  "version": "1.0.0",
+  "description": "This Telegram Bot should work as an alternative channel to get Arquitran's services (product information and purchasing).",
+  "main": "index.js",
+  "dependencies": {
+    "dotenv": "^4.0.0",
+    "node-telegram-bot-api": "^0.29.0",
+    "telegraf": "^3.15.3"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vjfuenzalida/iic2173-grupo3-telegram-bot.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/vjfuenzalida/iic2173-grupo3-telegram-bot/issues"
+  },
+  "homepage": "https://github.com/vjfuenzalida/iic2173-grupo3-telegram-bot#readme"
+}
