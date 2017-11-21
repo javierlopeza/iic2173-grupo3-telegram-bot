@@ -14,7 +14,9 @@ Aquí podrás acceder a los servicios de consulta y compra de productos de Arqui
 *Listado de comandos*:
 \`/productos\` - Muestra un listado de todos los productos con sus IDs.
 \`/producto X\` - Consulta por la información del producto cuyo id es 'n'
-\`/comprar\` - Accede al menú de compras.
+\`/comprar\` - Compra lo que tienes en el carrito.
+\`/agregar\` - Agrega al carrito el producto y la cantidad señalada.
+\`/vercarrito\` - Ver lo que hay en el carrito
 
 *Comandos de compra*:
 `
@@ -135,6 +137,41 @@ bot.command('producto', (ctx) => {
     })
   }
 })
+
+bot.command('comprar', (ctx) => {
+    let text = ctx.update.message.text
+    // let productos = buscar todos los productos
+    let cart = {"address": text, "cart":[{"product_id": 1, "quantity": 1}]}
+    server.buyProducts(userToken, car).then(product => {
+        let formattedData = "Compra realizada"
+        ctx.replyWithMarkdown(formattedData)
+    }).catch(err => {
+      let formattedData = "Error en la compra de productos"
+      ctx.replyWithMarkdown(formattedData)
+    })
+})
+
+bot.command('agregar', (ctx) => {
+  let text = ctx.update.message.text
+  if (text.match(/\bagregar\b\s{1}[1-9]{1,5}/i)) {
+    let id = parseInt(text.split(" ")[1])
+    let amount = parseInt(text.split(" ")[2])
+    server.getProductById(userToken, id).then(product => {
+      let formattedData = simpleFormatProduct(product)
+      ctx.replyWithMarkdown(formattedData)
+    }).catch(err => {
+      console.log("Failed to retrieve products")
+      console.log(err)
+    })
+  }
+})
+
+bot.command("vercarrito", (ctx) => {
+  // let product = buscar en la base de datos
+  let formattedData = formatProduct(product)
+  ctx.replyWithMarkdown(formattedData)
+})
+
 
 // Text recognition
 bot.hears('hi', (ctx) => ctx.reply('Hey there!'))
