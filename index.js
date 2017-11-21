@@ -1,5 +1,10 @@
 require('dotenv').config();
 
+// Setup mongoDB
+let mongo = require('./config/mongo')
+let User = require('./controllers/user-controller')
+let helpers = require('./lib/helpers')
+
 const token = process.env.TELEGRAM_TOKEN || 'YOUR_TELEGRAM_BOT_TOKEN';
 const server = require('./lib/arquitran-server')
 
@@ -18,42 +23,6 @@ Aquí podrás acceder a los servicios de consulta y compra de productos de Arqui
 
 *Comandos de compra*:
 `
-
-function formatProduct(p) {
-  return `  *${p.name} (id: ${p.id})*
-    ⋅ Valor: $${p.price}
-    ⋅ Grupo: ${p.category.group}
-    ⋅ Contexto: ${p.category.context}
-    ⋅ Área: ${p.category.area}`
-}
-
-function simpleFormatProduct(p) {
-  return `⋅ *${p.name} (id: ${p.id})* | $${p.price}`
-}
-
-function paginationKeyboard(prev, next) {
-  let keys = []
-  if (prev > 0) {
-    keys.push({
-      text: `<< Página anterior (${prev})`,
-      callback_data: `page ${prev}`
-    })
-  }
-  if (next > 0) {
-    keys.push({
-      text: `Página siguiente (${next}) >>`,
-      callback_data: `page ${next}`
-    })
-  }
-  return Markup.inlineKeyboard([keys]).oneTime().resize().extra()
-}
-
-function formatProducts(products, pageNumber) {
-  let title = `*Listado de productos - Página ${pageNumber}*
--------------------------------------\n\n`
-  productsList = products.map(p => simpleFormatProduct(p)).join("\n\n")
-  return title + productsList
-}
 
 const bot = new Telegraf(token)
 let userToken = "TokenIsMissing"
@@ -95,8 +64,8 @@ bot.on('callback_query', (ctx) => {
     server.getAllProducts(userToken, pageNumber).then(products => {
       let prev = pageNumber - 1
       let next = products.length == 10 ? pageNumber + 1 : 0
-      let keyboard = paginationKeyboard(prev, next)
-      let formattedData = formatProducts(products, pageNumber)
+      let keyboard = helpers.paginationKeyboard(prev, next)
+      let formattedData = helpers.formatProducts(products, pageNumber)
       ctx.replyWithMarkdown(formattedData, keyboard)
     }).catch(err => {
       console.log("Failed to retrieve products")
@@ -113,8 +82,8 @@ bot.command('productos', (ctx) => {
   server.getAllProducts(userToken, pageNumber).then(products => {
     let prev = pageNumber - 1
     let next = products.length > 0 ? pageNumber + 1 : 0
-    let keyboard = paginationKeyboard(prev, next)
-    let formattedData = formatProducts(products, pageNumber)
+    let keyboard = helpers.paginationKeyboard(prev, next)
+    let formattedData = helpers.formatProducts(products, pageNumber)
     ctx.replyWithMarkdown(formattedData, keyboard)
   }).catch(err => {
     console.log("Failed to retrieve products")
@@ -127,7 +96,7 @@ bot.command('producto', (ctx) => {
   if (text.match(/\bproducto\b\s{1}[1-9]{1,5}/i)) {
     let id = parseInt(text.split(" ")[1])
     server.getProductById(userToken, id).then(product => {
-      let formattedData = formatProduct(product)
+      let formattedData = helpers.formatProduct(product)
       ctx.replyWithMarkdown(formattedData)
     }).catch(err => {
       console.log("Failed to retrieve products")
