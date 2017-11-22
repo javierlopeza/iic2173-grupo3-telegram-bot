@@ -11,10 +11,7 @@ var UserSchema = new Schema({
   },
   last_name: {
     type: String
-  },
-  username: {
-    type: String
-  },
+  },  
   token: {
     type: String
   },

@@ -1,50 +1,62 @@
 'use strict'
 
 let mongoose = require('mongoose'),
-  User = require('../models/userModel')
+  User = require('../models/user')
 
 exports.findAll = function () {
-  User
-    .find({}, function (err, users) {
-      if (err) {
-        return err
-      }
-      return users
-    })
+  return new Promise(function (resolve, reject) {
+    User
+      .find({}, function (err, users) {
+        if (err) {
+          reject(err)
+        } else {
+          resolve(users)
+        }
+      })
+  })
 }
 
 exports.create = function (data) {
-  let new_user = new User(data)
-  new_user.save(function (err, user) {
-    if (err) {
-      return err
-    }
-    return user
+  return new Promise(function (resolve, reject) {
+    let new_user = new User(data)
+    new_user.save(function (err, user) {
+      if (err) {
+        reject(err)
+      } else {
+        resolve(user)
+      }
+    })
   })
 }
 
 exports.find = function (id) {
-  User
-    .findOne({
-      'id': id
-    }, function (err, user) {
-      if (err) {
-        return err
-      }
-      return user
-    })
+  return new Promise(function (resolve, reject) {
+    User
+      .findOne({
+        'id': id
+      }, function (err, user) {
+        if (err) {
+          reject(err)
+        } else {
+          resolve(user)
+        }
+      })
+  })
 }
 
 exports.update = function (id, data) {
-  User
-    .findOneAndUpdate({
-      'id': id
-    }, data, {
-      new: true
-    }, function (err, user) {
-      if (err) {
-        return err
-      }
-      return user
+  return new Promise(function (resolve, reject) {
+    User
+      .findOneAndUpdate({
+        'id': id
+      }, data, {
+        new: true
+      }, function (err, user) {
+        if (err) {
+          reject(err)
+        } else {
+          resolve(user)
+        }
+      })
     })
 }
