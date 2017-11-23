@@ -1,7 +1,7 @@
 //Set up mongoose connection
 let mongoose = require('mongoose')
 mongoose.Promise = global.Promise
-let mongoDB = process.env.MONGO_DB
+let mongoDB = process.env.MONGODB_URI
 let promise = mongoose.connect(mongoDB, {
   useMongoClient: true
 })
