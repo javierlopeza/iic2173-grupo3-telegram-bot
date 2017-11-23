@@ -16,6 +16,11 @@ const Markup = require('telegraf/markup')
 const Extra = require('telegraf/extra')
 
 
+function echo(ctx, message) {
+  ctx.reply(message)
+  console.log(message)
+}
+
 const greeting = `*Bienvenido a Arquitrán Bot!*
 Aquí podrás acceder a los servicios de consulta y compra de productos de Arquitrán.
 `
@@ -23,14 +28,20 @@ Aquí podrás acceder a los servicios de consulta y compra de productos de Arqui
 const commandList = `
 *Listado de comandos*:
 
+*Usuario*:
+\`/login user pass\` - Obtiene un token con las credenciales entregadas
 \`/validar token\` - Valida la identidad del usuario utilizando el token entregado.
+
+*Comandos de consulta*:
 \`/productos\` - Muestra un listado de todos los productos con sus IDs.
 \`/producto n\` - Consulta por la información del producto cuyo id es 'n'
+
+*Comandos de compra*:
 \`/carrito\` - Muestra el carrito de compras actual
 \`/agregar n m\` - Agrega al carrito el producto y la cantidad señalada.
-\`/comprar\` - Envía la solicitud de compras con el estado del carrito
-\`/vaciar\` - Vacía el carrito de compras
 \`/quitar n\` - Remueve el producto n del carrito de compras
+\`/vaciar\` - Vacía el carrito de compras
+\`/comprar\` - Envía la solicitud de compras con el estado del carrito
 `
 
 const bot = new Telegraf(token)
@@ -40,11 +51,10 @@ function setUser(ctx) {
   return new Promise((resolve, reject) => {
     Controller.find(ctx.from.id).then(user => {
       if (user) {
-        console.log("User already stored")
-        ctx.reply(`Datos estaban en la db`)
+        echo(ctx, "User already stored")
         resolve(user)
       } else {
-        console.log("Need to create user")
+        echo(ctx, "Need to create user")
         userData = {
           first_name: ctx.from.first_name,
           last_name: ctx.from.last_name,
@@ -52,8 +62,7 @@ function setUser(ctx) {
           token: userToken
         }
         Controller.create(userData).then(user => {
-          console.log(user)
-          ctx.reply('se creó un nuevo usuario en la db')
+          echo(ctx, "New user created: " + user)
           ctx.reply(`
           Para autentificarte, dirígete a https://arqss10.ing.puc.cl
           y busca tu token de validación.
@@ -74,7 +83,7 @@ function setUser(ctx) {
 }
 
 bot.start((ctx) => {
-  console.log('started: \nUser ID = ', ctx.from.id)
+  echo(ctx, 'started: \nUser ID = ' + ctx.from.id)
   let loginData = {
     username: process.env.EMAIL_DEFAULT,
     password: process.env.PASSWORD_DEFAULT
@@ -83,19 +92,7 @@ bot.start((ctx) => {
     userToken = user.token
     ctx.replyWithMarkdown(greeting + commandList)
   }).catch(err => {
-    ctx.reply("500 Server Error")    
-    // server.signIn(loginData).then(res => {
-    //   if (res.success) {
-    //     console.log("Login to Arquitrán Successful")
-    //     userToken = res.token
-    //     ctx.replyWithMarkdown(greeting + commandList)
-    //     if (userToken) console.log("Token retrieved correctly")      
-    //   } else {
-    //     console.log("couldn't login correctly")
-    //   }
-    // }).catch(err => {
-    //   console.log(err)
-    // })
+    echo(ctx, "500 Server Error")
   })
 })
 
@@ -120,8 +117,7 @@ bot.on('callback_query', (ctx) => {
       let formattedData = helpers.formatProducts(products, pageNumber)
       ctx.replyWithMarkdown(formattedData, keyboard)
     }).catch(err => {
-      console.log("Failed to retrieve products")
-      console.log(err)
+      console.log("Server Request Error: Unauthorized")
     })
   }
 })
@@ -131,40 +127,39 @@ bot.command('help', (ctx) => ctx.replyWithMarkdown(commandList))
 
 bot.command('validar', (ctx) => {
   let text = ctx.update.message.text
-  if (text.match(/\bvalidar\b\s{1}.*/i)) {
-    console.log("comando cashao")
-    let token = text.split(/\bvalidar\b\s{1}/)[1]
-    console.log(`token = ${token}`)
+  if (text.match(/\/{1}\bvalidar\b\s{1}.*/i)) {
+    let token = text.split(/\/{1}\bvalidar\b\s{1}/)[1]
     setUser(ctx).then(user => {
-      Controller.update(user.id, {token}).then(user => {
-        ctx.reply("CAMBIASTE TU TOKEN!")
-      }).catch(err => {
-        console.log("error en validar")
-        ctx.reply("No funcionó validar")
-      })  
+      Controller.update(user.id, {
+          token
+        })
+        .then(user => {
+          echo(ctx, "New token stored: " + token)
+        }).catch(err => {
+          echo(ctx, "Token update failed")
+        })
     }).catch(err => {
-      ctx.reply("usuario no encontrado")
-      console.log("usuario no encontrado")
+      echo(ctx, "User not found")
     })
   }
 })
 
 bot.command('productos', (ctx) => {
-  let pageNumber = 1 
+  let pageNumber = 1
   setUser(ctx).then(user => {
     userToken = user.token
-    server.getAllProducts(userToken, pageNumber).then(products => {
-      let prev = pageNumber - 1
-      let next = products.length > 0 ? pageNumber + 1 : 0
-      let keyboard = helpers.paginationKeyboard(prev, next)
-      let formattedData = helpers.formatProducts(products, pageNumber)
-      ctx.replyWithMarkdown(formattedData, keyboard)
-    }).catch(err => {
-      console.log("Failed to retrieve products")
-      console.log(err)
-    })
+    server.getAllProducts(userToken, pageNumber)
+      .then(products => {
+        let prev = pageNumber - 1
+        let next = products.length > 0 ? pageNumber + 1 : 0
+        let keyboard = helpers.paginationKeyboard(prev, next)
+        let formattedData = helpers.formatProducts(products, pageNumber)
+        ctx.replyWithMarkdown(formattedData, keyboard)
+      }).catch(err => {
+        echo(ctx, "Server request error: Unauthorized")
+      })
   }).catch(err => {
-    console.log("falló setUser")
+    echo(ctx, "User not found")
   })
 })
 
@@ -172,87 +167,160 @@ bot.command('producto', (ctx) => {
   let text = ctx.update.message.text
   if (text.match(/\bproducto\b\s{1}[1-9]{1,5}/i)) {
     let id = parseInt(text.split(" ")[1])
-    server.getProductById(userToken, id).then(product => {
-      let formattedData = helpers.formatProduct(product)
-      ctx.replyWithMarkdown(formattedData)
+    setUser(ctx).then(user => {
+      userToken = user.token
+      server.getProductById(userToken, id).then(product => {
+        let formattedData = helpers.formatProduct(product)
+        ctx.replyWithMarkdown(formattedData)
+      }).catch(err => {
+        echo(ctx, "Server request error")
+      })
     }).catch(err => {
-      console.log("Failed to retrieve products")
-      console.log(err)
+      echo(ctx, "User not found")
     })
   }
 })
 
 bot.command('carrito', (ctx) => {
-  Controller.find(ctx.from.id).then(user => {
-    ctx.reply(JSON.stringify(user.purchase_cart.cart))
+  setUser(ctx).then(user => {
+    // needs formatting
+    let carrito = user.purchase_cart.cart.length > 0 ? JSON.stringify(user.purchase_cart.cart) : "No has agregado nada a tu carrito!"
+    echo(ctx, carrito)
   }).catch(err => {
-    console.log("User not found")
-    ctx.reply("Error")
+    echo(ctx, "User not found")
   })
 })
 
 bot.command('agregar', (ctx) => {
   let text = ctx.update.message.text
-  if (text.match(/\bproducto\b\s{1}[1-9]{1,5}/i)) {
-    let id = parseInt(text.split(" ")[1])
-    server.getProductById(userToken, id).then(product => {
-      let formattedData = helpers.formatProduct(product)
-      ctx.replyWithMarkdown(formattedData)
+  if (text.match(/\/\bagregar\b\s{1}[1-9]{1,5}\s{1}[1-9]{1,5}/i)) {
+    let id, quantity;
+    [id, quantity] = text.split(/\/\bagregar\b\s{1}/i)[1].split(" ").map(val => parseInt(val))
+    echo(ctx, `Parsed values to add: ${id} ${quantity}`)
+    setUser(ctx).then(user => {
+      server.getProductById(user.token, id).then(product => {
+        let productData = {
+          product_id: parseInt(product.id),
+          price: parseInt(product.price),
+          name: product.name,
+          quantity: quantity
+        }
+        let newPurchaseCart = {
+          // should check if it already exists
+          cart: user.purchase_cart.cart.concat([productData]),
+          address: user.purchase_cart.address ? user.purchase_cart.address : ""
+        }
+        Controller.update(user.id, {
+          purchase_cart: newPurchaseCart
+        }).then(user => {
+          echo(ctx, "Product successfully added: " + user.purchase_cart.cart)
+        }).catch(err => {
+          echo(ctx, "Error updating the cart!")
+        })
+      }).catch(err => {
+        echo(ctx, "Failed to retrieve product info: ", err)
+      })
     }).catch(err => {
-      console.log("Failed to retrieve products")
-      console.log(err)
+      echo(ctx, "User not found")
     })
   }
 })
 
 bot.command('comprar', (ctx) => {
-  let text = ctx.update.message.text
-  if (text.match(/\bproducto\b\s{1}[1-9]{1,5}/i)) {
-    let id = parseInt(text.split(" ")[1])
-    server.getProductById(userToken, id).then(product => {
-      let formattedData = helpers.formatProduct(product)
-      ctx.replyWithMarkdown(formattedData)
-    }).catch(err => {
-      console.log("Failed to retrieve products")
-      console.log(err)
+  setUser(ctx).then(user => {
+    userToken = user.token
+    if (user.purchase_cart.cart.length == 0) {
+      echo(ctx, "Cart is empty, cannot make purchase :(")
+      return
+    }
+    let productsToBuy = user.purchase_cart.cart.map(item => {
+      return {
+        product_id: item.product_id,
+        quantity: item.quantity
+      }
     })
-  }
+    echo(ctx, "Preparing to purchase: " + JSON.stringify(productsToBuy))
+    let shoppingCart = {
+      cart: productsToBuy,
+      address: user.purchase_cart.address == "" ? "Mi casa" : user.purchase_cart.address
+    }
+    echo(ctx, "Shopping Cart Built: " + JSON.stringify(shoppingCart))
+    server.buyProducts(userToken, shoppingCart).then(purchases => {
+      echo(ctx, JSON.stringify(purchases))
+      Controller.update(user.id, {
+        purchase_cart: {
+          cart: [],
+          address: user.purchase_cart.address ? user.purchase_cart.address : ""
+        }
+      }).then(user => {
+        echo(ctx, "The puchase cart is now empty!")
+      }).catch(err => {
+        echo(ctx, "Error emptying the cart!")
+      })
+    }).catch(err => {
+      echo(ctx, "Server request error (purchases)")
+    })
+  }).catch(err => {
+    echo(ctx, "User not found")
+  })
 })
 
 bot.command('vaciar', (ctx) => {
-  let text = ctx.update.message.text
-  if (text.match(/\bproducto\b\s{1}[1-9]{1,5}/i)) {
-    let id = parseInt(text.split(" ")[1])
-    server.getProductById(userToken, id).then(product => {
-      let formattedData = helpers.formatProduct(product)
-      ctx.replyWithMarkdown(formattedData)
+  setUser(ctx).then(user => {
+    Controller.update(user.id, {
+      purchase_cart: {
+        cart: [],
+        address: user.purchase_cart.address ? user.purchase_cart.address : ""
+      }
+    }).then(user => {
+      echo(ctx, "The puchase cart is now empty!")
     }).catch(err => {
-      console.log("Failed to retrieve products")
-      console.log(err)
+      echo(ctx, "Error emptying the cart!")
     })
-  }
+  }).catch(err => {
+    echo(ctx, "User not found")
+  })
 })
 
 bot.command('quitar', (ctx) => {
+  echo(ctx, "feature in process...")
+})
+
+// THIS IS JUST FOR DEVELOPMENT (login command)
+
+bot.command('login', (ctx) => {
   let text = ctx.update.message.text
-  if (text.match(/\bproducto\b\s{1}[1-9]{1,5}/i)) {
-    let id = parseInt(text.split(" ")[1])
-    server.getProductById(userToken, id).then(product => {
-      let formattedData = helpers.formatProduct(product)
-      ctx.replyWithMarkdown(formattedData)
+  if (text.match(/\/{1}\blogin\b\s{1}.*/i)) {
+    let auth = text.split(/\/{1}\blogin\b\s{1}/)[1].split(" ")
+    let loginData = {
+      username: auth[0],
+      password: auth[1]
+    }
+    setUser(ctx).then(user => {
+      server.signIn(loginData).then(res => {
+        if (res.success) {
+          echo(ctx, "Login to Arquitrán Successful")
+          userToken = res.token
+          if (token) echo(ctx, "Token retrieved correctly")
+          Controller.update(user.id, {
+              token: userToken
+            })
+            .then(user => {
+              echo(ctx, "New token stored")
+            }).catch(err => {
+              echo(ctx, "Token update failed")
+            })
+        } else {
+          echo(ctx, "couldn't login correctly")
+        }
+      }).catch(err => {
+        echo(ctx, err)
+      })
     }).catch(err => {
-      console.log("Failed to retrieve products")
-      console.log(err)
+      echo(ctx, "User not found")
     })
   }
 })
-
-// Text recognition
-bot.hears('hi', (ctx) => ctx.reply('Hey there!'))
-bot.hears(/buy/i, (ctx) => ctx.reply('Buy-buy!'))
-
-// Event Handlers
-bot.on('sticker', (ctx) => ctx.reply('👍'))
 
 // Use polling to get incoming messages
 bot.startPolling()
