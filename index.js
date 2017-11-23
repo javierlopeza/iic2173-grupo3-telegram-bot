@@ -8,7 +8,7 @@ let User = require('./models/user')
 let Controller = require('./controllers/user-controller')
 let helpers = require('./lib/helpers')
 
-const token = process.env.TEST_TELEGRAM_TOKEN || 'YOUR_TELEGRAM_BOT_TOKEN';
+const token = process.env.TELEGRAM_TOKEN || 'YOUR_TELEGRAM_BOT_TOKEN';
 const server = require('./lib/arquitran-server')
 
 const Telegraf = require('telegraf')
