@@ -8,7 +8,7 @@ let User = require('./models/user')
 let Controller = require('./controllers/user-controller')
 let helpers = require('./lib/helpers')
 
-const token = process.env.TELEGRAM_TOKEN || 'YOUR_TELEGRAM_BOT_TOKEN';
+const token = process.env.TEST_TELEGRAM_TOKEN || 'YOUR_TELEGRAM_BOT_TOKEN';
 const server = require('./lib/arquitran-server')
 
 const Telegraf = require('telegraf')
@@ -17,31 +17,47 @@ const Extra = require('telegraf/extra')
 
 
 function echo(ctx, message) {
-  ctx.reply(message)
-  console.log(message)
+  // ctx.reply(message)
+  // console.log(message)
 }
 
-const greeting = `*Bienvenido a Arquitrán Bot!*
+const greeting = `*Bienvenido a Arquitrán Bot!* 👋 👨‍🔬
+
 Aquí podrás acceder a los servicios de consulta y compra de productos de Arquitrán.
 `
 
 const commandList = `
-*Listado de comandos*:
+*Listado de comandos* 👨‍💻 👩‍💻
 
-*Usuario*:
-\`/login user pass\` - Obtiene un token con las credenciales entregadas
-\`/validar token\` - Valida la identidad del usuario utilizando el token entregado.
+*Usuario*
+👤 \`/login user pass\` - Obtiene un token con las credenciales entregadas
+👌 \`/validar token\` - Valida la identidad del usuario utilizando el token entregado.
 
-*Comandos de consulta*:
-\`/productos\` - Muestra un listado de todos los productos con sus IDs.
-\`/producto n\` - Consulta por la información del producto cuyo id es 'n'
+*Consultas*
+💊 \`/producto n\` - Consulta por la información del producto cuyo id es 'n'
+📁 \`/productos\` - Muestra un listado de todos los productos con sus IDs.
 
-*Comandos de compra*:
-\`/carrito\` - Muestra el carrito de compras actual
-\`/agregar n m\` - Agrega al carrito el producto y la cantidad señalada.
-\`/quitar n\` - Remueve el producto n del carrito de compras
-\`/vaciar\` - Vacía el carrito de compras
-\`/comprar\` - Envía la solicitud de compras con el estado del carrito
+*Compras*
+🛒 \`/carrito\` - Muestra el carrito de compras actual
+➕️ \`/agregar n m\` - Agrega al carrito el producto y la cantidad señalada.
+🗑️ \`/vaciar\` - Vacía el carrito de compras
+➕️ \`/despacho dirección\` - Agrega la dirección señalada a la orden de compra.
+🛍️ \`/comprar\` - Envía la solicitud de compras con el estado del carrito
+`
+
+const validationHelp = `
+*⚠ Autentificación requerida ⚠*
+
+Para autentificarte, dirígete a [Arquitrán Web](https://arqss10.ing.puc.cl) y busca tu token 🎟 de validación en tu perfil. 
+
+Luego, utilizando el token obtenido, ejecuta el comando: \`/validar token\`
+para comenzar a utilizar ArquitranBot.
+`
+
+const validationSuccess = `
+✅ * Autentificación exitosa!* ✅ 🔓 
+
+Ahora podrás acceder a los servicios de Arquitrán por este canal! 💊 📋 
 `
 
 const bot = new Telegraf(token)
@@ -63,12 +79,6 @@ function setUser(ctx) {
         }
         Controller.create(userData).then(user => {
           echo(ctx, "New user created: " + user)
-          ctx.reply(`
-          Para autentificarte, dirígete a https://arqss10.ing.puc.cl
-          y busca tu token de validación.
-          Luego, utiliza el comando '/validar mitoken'
-          para comenzar a utilizar el bot
-          `)
           resolve(user)
         }).catch(err => {
           console.log(err)
@@ -89,8 +99,10 @@ bot.start((ctx) => {
     password: process.env.PASSWORD_DEFAULT
   }
   setUser(ctx).then(user => {
-    userToken = user.token
     ctx.replyWithMarkdown(greeting + commandList)
+    if (user.token == "TokenIsMissing") {
+      ctx.replyWithMarkdown(validationHelp)
+    }
   }).catch(err => {
     echo(ctx, "500 Server Error")
   })
@@ -134,7 +146,7 @@ bot.command('validar', (ctx) => {
           token
         })
         .then(user => {
-          echo(ctx, "New token stored: " + token)
+          ctx.replyWithMarkdown(validationSuccess)
         }).catch(err => {
           echo(ctx, "Token update failed")
         })
@@ -148,6 +160,10 @@ bot.command('productos', (ctx) => {
   let pageNumber = 1
   setUser(ctx).then(user => {
     userToken = user.token
+    if (userToken == "TokenIsMissing") {
+      ctx.replyWithMarkdown(validationHelp)
+      return
+    }
     server.getAllProducts(userToken, pageNumber)
       .then(products => {
         let prev = pageNumber - 1
@@ -156,7 +172,7 @@ bot.command('productos', (ctx) => {
         let formattedData = helpers.formatProducts(products, pageNumber)
         ctx.replyWithMarkdown(formattedData, keyboard)
       }).catch(err => {
-        echo(ctx, "Server request error: Unauthorized")
+        echo(ctx, "Server request error: Unauthorized")        
       })
   }).catch(err => {
     echo(ctx, "User not found")
@@ -169,6 +185,10 @@ bot.command('producto', (ctx) => {
     let id = parseInt(text.split(" ")[1])
     setUser(ctx).then(user => {
       userToken = user.token
+      if (user.token == "TokenIsMissing") {
+        ctx.replyWithMarkdown(validationHelp)
+        return
+      }
       server.getProductById(userToken, id).then(product => {
         let formattedData = helpers.formatProduct(product)
         ctx.replyWithMarkdown(formattedData)
@@ -184,10 +204,15 @@ bot.command('producto', (ctx) => {
 bot.command('carrito', (ctx) => {
   setUser(ctx).then(user => {
     // needs formatting
-    let carrito = user.purchase_cart.cart.length > 0 ? JSON.stringify(user.purchase_cart.cart) : "No has agregado nada a tu carrito!"
-    echo(ctx, carrito)
+    if (user.token == "TokenIsMissing") {
+      ctx.replyWithMarkdown(validationHelp)
+      return
+    }
+    let cartAsMessage = user.purchase_cart.cart.length > 0 ? helpers.formatCart(user.purchase_cart) : "No has agregado nada a tu carrito! 🤷"
+    echo(ctx, cartAsMessage)
+    ctx.replyWithMarkdown(cartAsMessage)
   }).catch(err => {
-    echo(ctx, "User not found")
+    echo(ctx, "User setting failed")
   })
 })
 
@@ -198,6 +223,10 @@ bot.command('agregar', (ctx) => {
     [id, quantity] = text.split(/\/\bagregar\b\s{1}/i)[1].split(" ").map(val => parseInt(val))
     echo(ctx, `Parsed values to add: ${id} ${quantity}`)
     setUser(ctx).then(user => {
+      if (user.token == "TokenIsMissing") {
+        ctx.replyWithMarkdown(validationHelp)
+        return
+      }      
       server.getProductById(user.token, id).then(product => {
         let productData = {
           product_id: parseInt(product.id),
@@ -205,15 +234,27 @@ bot.command('agregar', (ctx) => {
           name: product.name,
           quantity: quantity
         }
-        let newPurchaseCart = {
-          // should check if it already exists
-          cart: user.purchase_cart.cart.concat([productData]),
+        let existingProduct = user.purchase_cart.cart.filter(p => p.product_id == id)
+        let cart = []
+        if (existingProduct && existingProduct.length > 0){
+          existingProduct = existingProduct[0]
+          let accumulatedProduct = Object.assign({}, productData)
+          accumulatedProduct.quantity = productData.quantity + existingProduct.quantity          
+          cart = user.purchase_cart.cart.filter(p => p.product_id != id)
+          cart = cart.concat([accumulatedProduct])
+        } else {
+          cart = user.purchase_cart.cart.concat([productData])
+        }
+        let newPurchaseCart = {          
+          cart: cart,
           address: user.purchase_cart.address ? user.purchase_cart.address : ""
         }
         Controller.update(user.id, {
           purchase_cart: newPurchaseCart
         }).then(user => {
           echo(ctx, "Product successfully added: " + user.purchase_cart.cart)
+          ctx.replyWithMarkdown("➕ " + helpers.formatProductForCart(productData))
+          ctx.replyWithMarkdown(helpers.formatCart(user.purchase_cart))
         }).catch(err => {
           echo(ctx, "Error updating the cart!")
         })
@@ -229,8 +270,15 @@ bot.command('agregar', (ctx) => {
 bot.command('comprar', (ctx) => {
   setUser(ctx).then(user => {
     userToken = user.token
-    if (user.purchase_cart.cart.length == 0) {
+    if (userToken == "TokenIsMissing") {
+      ctx.replyWithMarkdown(validationHelp)
+      return
+    } else if (user.purchase_cart.cart.length == 0) {
       echo(ctx, "Cart is empty, cannot make purchase :(")
+      ctx.replyWithMarkdown("Tu carrito aún está vacío 🛒\nPrueba agregando productos con el comando \`\/agregar\`")
+      return
+    } else if(user.purchase_cart.address == "") {
+      ctx.replyWithMarkdown(`📍 Ubicación no detallada ⚠️ \nDebes indicar una dirección para poder realizar la compra!`)
       return
     }
     let productsToBuy = user.purchase_cart.cart.map(item => {
@@ -247,13 +295,21 @@ bot.command('comprar', (ctx) => {
     echo(ctx, "Shopping Cart Built: " + JSON.stringify(shoppingCart))
     server.buyProducts(userToken, shoppingCart).then(purchases => {
       echo(ctx, JSON.stringify(purchases))
+      let acceptedPurchasesMessage = ""
+      let rejectedPurchasesMessage = ""
+      if (purchases && purchases.success) {
+        acceptedPurchasesMessage = purchases.accepted.length > 0 ? helpers.formatAcceptedPurchases(purchases.accepted) : ""      
+        rejectedPurchasesMessage = purchases.rejected.length > 0 ? helpers.formatRejectedPurchases(purchases.rejected) : ""  
+      }
+      let purchasesSummary = `*RESUMEN DE COMPRAS*\n` + acceptedPurchasesMessage + "\n\n" + rejectedPurchasesMessage
+      ctx.replyWithMarkdown(purchasesSummary)
       Controller.update(user.id, {
         purchase_cart: {
           cart: [],
           address: user.purchase_cart.address ? user.purchase_cart.address : ""
         }
       }).then(user => {
-        echo(ctx, "The puchase cart is now empty!")
+        ctx.replyWithMarkdown("Tu carrito fue vaciado 🗑️\nPara iniciar una nueva compra, agrega productos con el comando \`\/agregar\`")
       }).catch(err => {
         echo(ctx, "Error emptying the cart!")
       })
@@ -265,8 +321,40 @@ bot.command('comprar', (ctx) => {
   })
 })
 
+bot.command('despacho', (ctx) => {
+  setUser(ctx).then(user => {
+    if (user.token == "TokenIsMissing") {
+      ctx.replyWithMarkdown(validationHelp)
+      return
+    }
+    let text = ctx.update.message.text
+    if (text.match(/\/\bdespacho\b\s{1}(\w+\s?)+/i)) {
+      let address = text.split(/\/\bdespacho\b\s{1}/i)[1]
+      Controller.update(user.id, {
+        purchase_cart: {
+          cart: user.purchase_cart.cart,
+          address: address
+        }
+      }).then(user => {
+        echo(ctx, "The puchase cart is now empty!")
+        ctx.replyWithMarkdown("Se ha cambiado tu dirección de despacho!")
+      }).catch(err => {
+        echo(ctx, "Error emptying the cart!")
+      })
+    } else {
+      ctx.replyWithMarkdown(`Por favor ingresa una dirección válida :(`)
+    }
+  }).catch(err => {
+    echo(ctx, "User not found")
+  })
+})
+
 bot.command('vaciar', (ctx) => {
   setUser(ctx).then(user => {
+    if (user.token == "TokenIsMissing") {
+      ctx.replyWithMarkdown(validationHelp)
+      return
+    }
     Controller.update(user.id, {
       purchase_cart: {
         cart: [],
@@ -274,6 +362,7 @@ bot.command('vaciar', (ctx) => {
       }
     }).then(user => {
       echo(ctx, "The puchase cart is now empty!")
+      ctx.replyWithMarkdown("Tu carrito fue vaciado 🗑️\n")
     }).catch(err => {
       echo(ctx, "Error emptying the cart!")
     })
@@ -300,6 +389,7 @@ bot.command('login', (ctx) => {
       server.signIn(loginData).then(res => {
         if (res.success) {
           echo(ctx, "Login to Arquitrán Successful")
+          ctx.reply("Login a Arquitrán exitoso!")
           userToken = res.token
           if (token) echo(ctx, "Token retrieved correctly")
           Controller.update(user.id, {
@@ -307,6 +397,7 @@ bot.command('login', (ctx) => {
             })
             .then(user => {
               echo(ctx, "New token stored")
+              ctx.replyWithMarkdown(validationSuccess)
             }).catch(err => {
               echo(ctx, "Token update failed")
             })
